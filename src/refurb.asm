@@ -152,6 +152,8 @@ start:
 	; Activate all interrupts
 	mov 	flags, 0
 
+	call 	rumble
+
 main_loop:
 	call keys_wait_for_release
 	call keys_wait_for_press
@@ -265,6 +267,7 @@ pressed_a:
 	mov a, 2 ; x axis
 	mov b, 4
 	call put_tile
+	; call rumble_stop
 	jmp main_loop
 
 pressed_b:
@@ -293,6 +296,10 @@ pressed_c:
 	mov a, 4 ; x axis
 	mov b, 4
 	call put_tile
+; 	mov a, [btnC]
+; 	cmp a, 0
+; 	jnz _skip_rumble
+; _skip_rumble:
 	jmp main_loop
 
 
@@ -430,17 +437,23 @@ put_tile_loop:
 ; Rumble -  this doesnt quite work yet
 ;-----------------------------------------------------------------------------
 rumble:
-  push 	b
-  mov	[nn+$61],$10		; RUMBLE!
-;   ret
-  mov 	b, 9
+  push ba
 
-rumble_loop:
-  jdbnz rumble_loop
-  mov	[nn+$61],$64 ; stop rumble
-  pop 	b
-  ret
+;   mov [nn+$60],$10		; RUMBLE!
+  mov [nn+$61],$10		; RUMBLE!
 
+  mov a, $ff
+_rumble_loop_outer:
+  mov b, $ff
+
+_rumble_loop:
+	jdbnz _rumble_loop
+	dec a
+	JNZ _rumble_loop_outer
+
+	mov	[nn+$61],$64 ; stop rumble
+	pop ba
+	ret
 
 
 ;-----------------------------------------------------------------------------

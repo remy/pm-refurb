@@ -8,6 +8,8 @@ I wrote this tool because I've started acquiring faulty Pokémon Mini consoles a
 
 Pressing a button or triggering the shock will increment the counter. Initially the counter is empty (zero times), then cycles through from 1 to F (15) and then repeats.
 
+When the cart boots up for the first time, it will also trigger the rumble feature. If the Pokemon Mini doesn't rumble during this cart being tested it means your rumble motor isn't working.
+
 ## Compiling
 
 Supported on Window and MacOS:
