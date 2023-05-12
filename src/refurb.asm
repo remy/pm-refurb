@@ -9,6 +9,8 @@
 ;-----------------------------------------------------------------------------
 
 	.include ./includes/header.asm
+	.include ./includes/pm_init.asm
+	.include ./includes/pm_music.asm
 
 ;-----------------------------------------------------------------------------
 ; Variables
@@ -81,28 +83,28 @@ begin:
     jmp int_shock
 #INT #15
 .orgfill 0x215C   #KEY PRESS: POWER BUTTON
-    jmp unhandled_interrupt
+    jmp pressed_power
 #INT #16
 .orgfill 0x2162   #KEY PRESS: D-PAD RIGHT
-    jmp unhandled_interrupt
+    jmp pressed_right
 #INT #17
 .orgfill 0x2168   #KEY PRESS: D-PAD LEFT
-    jmp unhandled_interrupt
+    jmp pressed_left
 #INT #18
 .orgfill 0x216E   #KEY PRESS: D-PAD DOWN
-    jmp unhandled_interrupt
+    jmp pressed_down
 #INT #19
 .orgfill 0x2174   #KEY PRESS: D-PAD UP
-    jmp unhandled_interrupt
+    jmp pressed_up
 #INT #20
 .orgfill 0x217A   #KEY PRESS: C KEY
-    jmp unhandled_interrupt
+    jmp pressed_c
 #INT #21
 .orgfill 0x2180   #KEY PRESS: B KEY
-    jmp unhandled_interrupt
+    jmp pressed_b
 #INT #22
 .orgfill 0x2186   #KEY PRESS: A KEY
-    jmp unhandled_interrupt
+    jmp pressed_a
 #INT #23
 .orgfill 0x218C   #
     jmp unhandled_interrupt
@@ -112,9 +114,6 @@ begin:
 #INT #25
 .orgfill 0x2198   #
     jmp unhandled_interrupt
-
-
-
 
 	.org	0x21A4
 	.db		"NINTENDO"		; magic string
@@ -137,9 +136,15 @@ start:
 	movb	[nn+VIDEO_0], $02+$08
 	movb	[nn+VIDEO_1], $01+$08
 
-	movb	[nn+REG_INT_FLAG],INT2S_SHOCK
 
-	; set interrupt on shock
+	; set interrupts
+
+	movb	[nn+REG_INT_FLAG],INT2S_SHOCK ; clear the state
+    movb	[nn+REG_EVENT1P],INT1P_KEYPAD ; clear the current state
+
+	; enable the interrupts
+	movb	[nn+REG_EVENT1S],INT1S_KEY_UP|INT1S_KEY_DOWN|INT1S_KEY_LEFT|INT1S_KEY_RIGHT|INT1S_KEY_POWER|INT1S_KEY_A|INT1S_KEY_B|INT1S_KEY_C
+
     movb	[nn+REG_EVENT2P],INT2P_SHOCK
     movb	[nn+REG_EVENT2S],INT2S_SHOCK
 
@@ -152,32 +157,19 @@ start:
 	; Activate all interrupts
 	mov 	flags, 0
 
+	call play_sfx_1
+
 main_loop:
-	call keys_wait_for_release
-	call keys_wait_for_press
+	jr main_loop
 
-check_input:
-	test [nn+BUTTONS], BUTTON_POWER
-	jz pressed_power
-	test [nn+BUTTONS], BUTTON_LEFT
-	jz pressed_left
-	test [nn+BUTTONS], BUTTON_RIGHT
-	jz pressed_right
-	test [nn+BUTTONS], BUTTON_UP
-	jz pressed_up
-	test [nn+BUTTONS], BUTTON_DOWN
-	jz pressed_down
-	test [nn+BUTTONS], BUTTON_A
-	jz pressed_a
-	test [nn+BUTTONS], BUTTON_B
-	jz pressed_b
-	test [nn+BUTTONS], BUTTON_C
-	jz pressed_c
-
-	jmp main_loop
 
 pressed_power:
-	int		INT_SHUTDOWN
+	movb	[nn+REG_INT1P_FLAG],IF_KEY_POWER
+	test	[nn+$52],$80		# Power key
+	jnz		noturnoff
+	cint	INT_SHUTDOWN			# bye bye
+noturnoff:
+	reti
 
 int_shock:
 	pusha
@@ -198,6 +190,7 @@ int_shock:
 	reti
 
 pressed_left:
+	movb	[nn+REG_INT1P_FLAG],IF_KEY_LEFT
 	mov a, [btnL]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -209,9 +202,10 @@ pressed_left:
 	mov a, 5 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	reti
 
 pressed_right:
+	movb	[nn+REG_INT1P_FLAG],IF_KEY_RIGHT
 	mov a, [btnR]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -223,9 +217,10 @@ pressed_right:
 	mov a, 7 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	reti
 
 pressed_up:
+	movb	[nn+REG_INT1P_FLAG],IF_KEY_UP
 	mov a, [btnU]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -237,9 +232,10 @@ pressed_up:
 	mov a, 6 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	reti
 
 pressed_down:
+	movb	[nn+REG_INT1P_FLAG],IF_KEY_DOWN
 	mov a, [btnD]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -251,9 +247,10 @@ pressed_down:
 	mov a, 8 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	reti
 
 pressed_a:
+    movb [nn+REG_INT1P_FLAG],IF_KEY_A
 	mov a, [btnA]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -265,9 +262,10 @@ pressed_a:
 	mov a, 2 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	reti
 
 pressed_b:
+	movb	[nn+REG_INT1P_FLAG],IF_KEY_B
 	mov a, [btnB]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -279,9 +277,10 @@ pressed_b:
 	mov a, 3 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	reti
 
 pressed_c:
+	movb [nn+REG_INT1P_FLAG],IF_KEY_C
 	mov a, [btnC]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -293,7 +292,8 @@ pressed_c:
 	mov a, 4 ; x axis
 	mov b, 4
 	call put_tile
-	jmp main_loop
+	; call rumble
+	reti
 
 
 clear_screen:
@@ -430,35 +430,42 @@ put_tile_loop:
 ; Rumble -  this doesnt quite work yet
 ;-----------------------------------------------------------------------------
 rumble:
-  push 	b
-  mov	[nn+$61],$10		; RUMBLE!
-;   ret
-  mov 	b, 9
+	push b
+	mov	[nn+$61],$10		; RUMBLE!
+	;   ret
+	mov b, $ff
 
 rumble_loop:
-  jdbnz rumble_loop
-  mov	[nn+$61],$64 ; stop rumble
-  pop 	b
-  ret
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 
-
-
-;-----------------------------------------------------------------------------
-; keys_wait_for_press
-;-----------------------------------------------------------------------------
-keys_wait_for_press:
-	mov		a, [nn+BUTTONS]
-	cmp		a, 0xFF
-	jz		keys_wait_for_press
+	jdbnz rumble_loop
+	mov	[nn+$61],$64 ; stop rumble
+	pop 	b
 	ret
 
-;-----------------------------------------------------------------------------
-; keys_wait_for_release
-;-----------------------------------------------------------------------------
-keys_wait_for_release:
-	mov		a, [nn+BUTTONS]
-	cmp		a, 0xFF
-	jnz		keys_wait_for_release
+
+
+
+play_sfx_1:
+	mov b, 0
+	mov a, 0
+	shl a
+	shl a
+	mov hl, sfx_list
+	add hl, ba
+	mov b, [hl]
+	dec hl
+	dec hl
+	mov hl, [hl]
+
+	call pmmusic_playsfx
 	ret
 
 ;-----------------------------------------------------------------------------
@@ -487,6 +494,20 @@ tile_bg_b: .db 17
 tile_counter: .db 18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34
 
 author: .db "Written by Remy Sharp, 2023"
+
+sfx_list:
+	.dd sound_fx0
+
+sfx_list_last:	.db 1
+
+	PMMUSIC_ALIGN
+
+sound_fx0:
+	PMMUSIC_ROW N_C_5, $80, 3, 1
+	PMMUSIC_ROW N_B_4, $80, 3, 1
+	PMMUSIC_ROW N_A_4, $80, 3, 1
+	PMMUSIC_END
+
 
 	.align 8
 

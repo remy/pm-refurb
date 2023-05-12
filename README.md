@@ -19,10 +19,11 @@ Supported on Window and MacOS:
 
 These are included in the `bin` directory, but can be found here:
 
-- [pmas 0.20](https://www.pokemon-mini.net/tools/pika-macro-assembler/)
+- [pmas 1.1](https://github.com/logicplace/PMAS/)
 - [bmp2bin](https://www.pokemon-mini.net/tools/bmp2bin/)
 
 ## TODO
 
 - Rumble on trigger button (currently I can't work out how to stop the rumble!)
+- Sound
 - Possibly infrared, but apparently it's not documented
