@@ -157,7 +157,7 @@ start:
 	; Activate all interrupts
 	mov 	flags, 0
 
-	call play_sfx_1
+	call 	rumble
 
 main_loop:
 	jr main_loop
@@ -430,24 +430,22 @@ put_tile_loop:
 ; Rumble -  this doesnt quite work yet
 ;-----------------------------------------------------------------------------
 rumble:
-	push b
-	mov	[nn+$61],$10		; RUMBLE!
-	;   ret
-	mov b, $ff
+  push ba
 
-rumble_loop:
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+;   mov [nn+$60],$10		; RUMBLE!
+  mov [nn+$61],$10		; RUMBLE!
 
-	jdbnz rumble_loop
+  mov a, $ff
+_rumble_loop_outer:
+  mov b, $ff
+
+_rumble_loop:
+	jdbnz _rumble_loop
+	dec a
+	JNZ _rumble_loop_outer
+
 	mov	[nn+$61],$64 ; stop rumble
-	pop 	b
+	pop ba
 	ret
 
 
