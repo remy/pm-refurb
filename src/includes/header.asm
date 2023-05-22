@@ -86,16 +86,39 @@ USER_BEGIN:
 
 ;-----------------------------------------------------------------------------
 ; Interrupt numbers
-;-----------------------------------------------------------------------------
+; https://github.com/logicplace/pm-dev-docs/blob/master/PM_IRQs.md#vector-tables
+ ;-----------------------------------------------------------------------------
 
 	.equ		INT_SUSPEND		$21
 	.equ		INT_SHUTDOWN	$24
 
-#### INT #14
-#primary enable
-	.equ	REG_EVENT2P			$22
-	.equ	INT2P_SHOCK			0b11
-	#secondary enable
-	.equ	REG_EVENT2S			$26
-	.equ	INT2S_SHOCK			0b1000000
-	.equ	REG_INT_FLAG		$2a
+# int buttons
+	.equ		REG_EVENT1P		$21            ; priorty register
+	.equ		INT1P_KEYPAD	0b1100        ; range in priority register
+	# enable
+	.equ		REG_EVENT1S	$25
+	.equ		INT1S_KEY_A		0b1
+	.equ		INT1S_KEY_B		0b10
+	.equ		INT1S_KEY_C		0b100
+	.equ		INT1S_KEY_UP	0b1000
+	.equ		INT1S_KEY_DOWN	0b10000
+	.equ		INT1S_KEY_LEFT	0b100000
+	.equ		INT1S_KEY_RIGHT	0b1000000
+	.equ		INT1S_KEY_POWER	0b10000000
+	.equ		REG_INT1P_FLAG	$29            ; hardware strobe
+	.equ		IF_KEY_A		0b1
+	.equ		IF_KEY_B		0b10
+	.equ		IF_KEY_C		0b100
+	.equ		IF_KEY_UP		0b1000
+	.equ		IF_KEY_DOWN		0b10000
+	.equ		IF_KEY_LEFT		0b100000
+	.equ		IF_KEY_RIGHT	0b1000000
+	.equ		IF_KEY_POWER	0b10000000
+
+# int shock
+	.equ		REG_EVENT2P		$22
+	.equ		INT2P_SHOCK		0b11
+	# enable
+	.equ		REG_EVENT2S		$26
+	.equ		INT2S_SHOCK		0b1000000
+	.equ		REG_INT_FLAG	$2a
