@@ -87,25 +87,25 @@ USER_BEGIN:
 ;-----------------------------------------------------------------------------
 ; Interrupt numbers
 ; https://github.com/logicplace/pm-dev-docs/blob/master/PM_IRQs.md#vector-tables
- ;-----------------------------------------------------------------------------
+;-----------------------------------------------------------------------------
 
 	.equ		INT_SUSPEND		$21
 	.equ		INT_SHUTDOWN	$24
 
 # int buttons
-	.equ		REG_EVENT1P		$21            ; priorty register
-	.equ		INT1P_KEYPAD	0b1100        ; range in priority register
+	.equ		REG_EVENT1P		$21			; priorty register
+	.equ		INT1P_KEYPAD	0b1100		; range in priority register
 	# enable
-	.equ		REG_EVENT1S	$25
+	.equ 		REG_EVENT1S		$25
 	.equ		INT1S_KEY_A		0b1
 	.equ		INT1S_KEY_B		0b10
 	.equ		INT1S_KEY_C		0b100
 	.equ		INT1S_KEY_UP	0b1000
 	.equ		INT1S_KEY_DOWN	0b10000
 	.equ		INT1S_KEY_LEFT	0b100000
-	.equ		INT1S_KEY_RIGHT	0b1000000
-	.equ		INT1S_KEY_POWER	0b10000000
-	.equ		REG_INT1P_FLAG	$29            ; hardware strobe
+	.equ		INT1S_KEY_RIGHT 0b1000000
+	.equ		INT1S_KEY_POWER 0b10000000
+	.equ		REG_INT1P_FLAG	$29			; hardware strobe
 	.equ		IF_KEY_A		0b1
 	.equ		IF_KEY_B		0b10
 	.equ		IF_KEY_C		0b100
@@ -122,3 +122,18 @@ USER_BEGIN:
 	.equ		REG_EVENT2S		$26
 	.equ		INT2S_SHOCK		0b1000000
 	.equ		REG_INT_FLAG	$2a
+
+## EEPROM&IO REGISTERS
+	.equ 	REG_IO_ENABLE		$60
+	.equ	IO_IR				0b10
+	.equ	IO_EEPROM_DATA		0b100
+	.equ	IO_EEPROM_CLOCK		0b1000
+	.equ	IO_EEPROM_RUMBLE	0b10000
+	.equ	IO_IR_ENABLE		0b100000
+
+	.equ 	IO_EEPROM_DATA_OFF	0b11111011
+	.equ	IO_EEPROM_CLOCK_OFF	0b11110111
+
+	.equ 	REG_IO_DATA			$61
+	.equ	IO_IR_IN			0b1
+	.equ	IO_IR_OUT			0b10
