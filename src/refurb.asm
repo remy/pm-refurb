@@ -12,11 +12,16 @@
 	.include ./includes/pm_init.asm
 	.include ./includes/pm_music.asm
 
+
 ;-----------------------------------------------------------------------------
 ; Variables
 ;-----------------------------------------------------------------------------
+.equ 	EEPROM_DATA_ADDR $0000			; we're going to read GB from the eeprom
+.equ	EEPROM_DATA_SIZE	2
+
 .org 0x1300
-btnMarker: .ds $FA
+error: .db 0
+eeprom_buffer: .ds EEPROM_DATA_SIZE
 btnA: .db 0
 btnB: .db 0
 btnC: .db 0
@@ -25,7 +30,6 @@ btnU: .db 0
 btnL: .db 0
 btnR: .db 0
 btnS: .db 0
-
 
 ;-----------------------------------------------------------------------------
 ; Header
@@ -136,32 +140,66 @@ start:
 	movb	[nn+VIDEO_0], $02+$08
 	movb	[nn+VIDEO_1], $01+$08
 
+	; interrupts
 
-	; set interrupts
-
-	movb	[nn+REG_INT_FLAG],INT2S_SHOCK ; clear the state
+	; enable the input interrupts
     movb	[nn+REG_EVENT1P],INT1P_KEYPAD ; clear the current state
-
-	; enable the interrupts
 	movb	[nn+REG_EVENT1S],INT1S_KEY_UP|INT1S_KEY_DOWN|INT1S_KEY_LEFT|INT1S_KEY_RIGHT|INT1S_KEY_POWER|INT1S_KEY_A|INT1S_KEY_B|INT1S_KEY_C
 
+	; shock
+	movb	[nn+REG_INT_FLAG],INT2S_SHOCK ; clear the state
     movb	[nn+REG_EVENT2P],INT2P_SHOCK
     movb	[nn+REG_EVENT2S],INT2S_SHOCK
+
+	; get irqs working in minimon
+	mov		flags, 0
+
 
 	; set tile data pointer point to the loaded bitmaps
 	mov		x1, tile_data
 	movw	[REG_BASE+VIDEO_TILEDATA], x1
 
 	call 	fill_screen
+	call	get_eeprom_data
 
-	; Activate all interrupts
-	mov 	flags, 0
+	call	is_eeprom_ok
 
 	call 	rumble
+
 
 main_loop:
 	jr main_loop
 
+is_eeprom_ok:
+	mov 	x2, TILEMAP
+	ld		l, 75
+	mov 	x1, eeprom_tile
+	mov 	b, 4
+_eeprom_print:
+	call	print_loop
+
+	ld		x1, [eeprom_buffer]
+	cmp		x1, $4247 ; "GB"
+
+	jnz		_eeprom_print_bad
+	mov 	x1, eeprom_tile_ok
+	jr		_eeprom_print_res
+_eeprom_print_bad:
+	mov 	x1, eeprom_tile_bad
+_eeprom_print_res:
+	mov 	b, 2
+	call	print_loop
+
+_eeprom_end:
+	ret
+
+print_loop:
+	mov 	a, [x1]
+	mov 	[x2+l], a
+	inc 	l
+  	inc 	x1
+	jdbnz 	print_loop
+	ret
 
 pressed_power:
 	movb	[nn+REG_INT1P_FLAG],IF_KEY_POWER
@@ -172,7 +210,7 @@ noturnoff:
 	reti
 
 int_shock:
-	pusha
+	push ale
 
 	movb [nn+REG_INT_FLAG],INT2S_SHOCK
 	mov a, [btnS]
@@ -186,11 +224,15 @@ int_shock:
 	mov a, 9 ; x axis
 	mov b, 4
 	call put_tile
-	popa
+	pop ale
 	reti
 
 pressed_left:
+	push ale
 	movb	[nn+REG_INT1P_FLAG],IF_KEY_LEFT
+	test	[nn+BUTTONS],IF_KEY_LEFT
+	jnz		notdown_left
+
 	mov a, [btnL]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -202,10 +244,16 @@ pressed_left:
 	mov a, 5 ; x axis
 	mov b, 4
 	call put_tile
+notdown_left:
+	pop ale
 	reti
 
 pressed_right:
+	push ale
 	movb	[nn+REG_INT1P_FLAG],IF_KEY_RIGHT
+	test	[nn+BUTTONS],IF_KEY_RIGHT
+	jnz		notdown_right
+
 	mov a, [btnR]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -217,10 +265,15 @@ pressed_right:
 	mov a, 7 ; x axis
 	mov b, 4
 	call put_tile
+notdown_right:
+	pop ale
 	reti
 
 pressed_up:
+	push ale
 	movb	[nn+REG_INT1P_FLAG],IF_KEY_UP
+	test	[nn+BUTTONS],IF_KEY_UP
+	jnz		notdown_up
 	mov a, [btnU]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -232,10 +285,15 @@ pressed_up:
 	mov a, 6 ; x axis
 	mov b, 4
 	call put_tile
+notdown_up:
+	pop ale
 	reti
 
 pressed_down:
+	push ale
 	movb	[nn+REG_INT1P_FLAG],IF_KEY_DOWN
+	test	[nn+BUTTONS],IF_KEY_DOWN
+	jnz		notdown_down
 	mov a, [btnD]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -247,10 +305,15 @@ pressed_down:
 	mov a, 8 ; x axis
 	mov b, 4
 	call put_tile
+notdown_down:
+	pop ale
 	reti
 
 pressed_a:
+	push ale
     movb [nn+REG_INT1P_FLAG],IF_KEY_A
+	test	[nn+BUTTONS],IF_KEY_A
+	jnz		notdown_a
 	mov a, [btnA]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -262,10 +325,15 @@ pressed_a:
 	mov a, 2 ; x axis
 	mov b, 4
 	call put_tile
+notdown_a:
+	pop ale
 	reti
 
 pressed_b:
+	push ale
 	movb	[nn+REG_INT1P_FLAG],IF_KEY_B
+	test	[nn+BUTTONS],IF_KEY_B
+	jnz		notdown_b
 	mov a, [btnB]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -277,10 +345,15 @@ pressed_b:
 	mov a, 3 ; x axis
 	mov b, 4
 	call put_tile
+notdown_b:
+	pop ale
 	reti
 
 pressed_c:
+	push ale
 	movb [nn+REG_INT1P_FLAG],IF_KEY_C
+	test	[nn+BUTTONS],IF_KEY_C
+	jnz		notdown_c
 	mov a, [btnC]
 	inc a
 	andb a, $f ; mask only the first nibble
@@ -292,6 +365,8 @@ pressed_c:
 	mov a, 4 ; x axis
 	mov b, 4
 	call put_tile
+notdown_c:
+	pop ale
 	; call rumble
 	reti
 
@@ -354,7 +429,7 @@ printing_buttons:
 print_button_loop:
 	mov a, [x1] ; might need to subtract L (if possible)
 	mov [x2+l], a
-  incw x1
+  	incw x1
 	inc l
 	jdbnz print_button_loop
 
@@ -411,8 +486,6 @@ fill_bottom: ; top row
 ;		b - row
 ;-----------------------------------------------------------------------------
 put_tile:
-	push a
-	push b
 put_tile_loop:
 	add a, 12      ; a := a + 12*b
 	jdbnz put_tile_loop ;
@@ -422,19 +495,17 @@ put_tile_loop:
 	mov b, [x1]
 	mov [x2+l], b
 
-	pop b
-	pop a
 	ret
 
 ;-----------------------------------------------------------------------------
-; Rumble -  this doesnt quite work yet
+; Rumble
 ;-----------------------------------------------------------------------------
 rumble:
   push ba
 
-;   mov [nn+$60],$10		; RUMBLE!
   mov [nn+$61],$10		; RUMBLE!
 
+  ; rumble for 0xffff amount of loops - it's about the right timing
   mov a, $ff
 _rumble_loop_outer:
   mov b, $ff
@@ -442,7 +513,7 @@ _rumble_loop_outer:
 _rumble_loop:
 	jdbnz _rumble_loop
 	dec a
-	JNZ _rumble_loop_outer
+	jnz _rumble_loop_outer
 
 	mov	[nn+$61],$64 ; stop rumble
 	pop ba
@@ -466,6 +537,129 @@ play_sfx_1:
 	call pmmusic_playsfx
 	ret
 
+
+;-----------------------------------------------------------------------------
+; EEPROM methods
+;-----------------------------------------------------------------------------
+
+get_eeprom_data:
+	# enable the eeprom lines
+	orb		[nn+REG_IO_ENABLE], IO_EEPROM_DATA|IO_EEPROM_CLOCK
+
+	ld		x1, EEPROM_DATA_ADDR
+
+	call	start_condition
+
+	# write device address byte
+	mov		a, 0b10100000						# dummy write, to set address
+	call 	send_byte
+	mov		ba, x1								# get high byte off address
+	mov		a, b
+	call 	send_byte
+	mov		ba, x1								# and low byte
+	call 	send_byte
+	# now set to read
+	call	start_condition
+	mov		a, 0b10100001						# read
+	call 	send_byte
+
+	# read into buffer
+	mov		x2,	eeprom_buffer
+	mov		l, 0
+
+read_data:
+	andb	[nn+REG_IO_ENABLE], IO_EEPROM_DATA_OFF	# switch data line to read
+	call	read_byte
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+	orb		[nn+REG_IO_ENABLE], IO_EEPROM_DATA		# switch data line to write
+
+	mov		[x2+l], a
+	inc		l
+	cmp		l, EEPROM_DATA_SIZE
+	jz		all_read
+	#send ack
+	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF	# data down
+	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+	jmp		read_data
+
+all_read:
+	#send stop condition
+	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
+	orb		[nn+REG_IO_DATA], IO_EEPROM_DATA		# data up
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+
+	# disable the eeprom lines
+	andb	[nn+REG_IO_ENABLE], IO_EEPROM_DATA_OFF&IO_EEPROM_CLOCK_OFF
+
+	ret
+
+
+# start condition - data down, clock down
+start_condition:
+	orb		[nn+REG_IO_DATA], IO_EEPROM_DATA		# data up
+	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
+	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF
+	ret
+#--------------------------------------------
+# send byte - transmit a byte of data
+# assumes clock is down, destroys b
+# input is in a
+send_byte:
+	mov		b, 8
+_send_bit:
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+	rolb	a										# msb to lsb
+	test	a, 1
+	jz		_send_bit_off
+	orb		[nn+REG_IO_DATA], IO_EEPROM_DATA		# switch bit on
+	jmp 	_next_bit
+
+_send_bit_off:
+	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF	#switch bit off
+
+_next_bit:
+	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
+	jdbnz	_send_bit
+
+	# ack
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+	andb	[nn+REG_IO_ENABLE],	IO_EEPROM_DATA_OFF	# switch data line to read
+	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
+	testb	[nn+REG_IO_DATA], IO_EEPROM_DATA		# read bit
+	jnz		_do_something
+
+	orb		[nn+REG_IO_ENABLE],	IO_EEPROM_DATA		# switch data line to write
+	jmp		_done
+
+_do_something:
+	mov 	b, a
+	mov		a, $ff
+	mov		[error], a
+	mov 	a, b
+_done:
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+	ret
+#--------------------------------------------
+#read byte - receive a byte of data
+# assumes clock is high, destroys b
+#output goes in a
+read_byte:
+	mov		b, 8
+	mov		a, 0
+_read_bit:
+	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
+	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
+	shlb	a
+	testb	[nn+REG_IO_DATA], IO_EEPROM_DATA		#read bit
+	jz		_next_read
+	inc		a										# set low bit
+
+_next_read:
+	jdbnz	_read_bit
+
+	ret
 ;-----------------------------------------------------------------------------
 ; Data
 ;-----------------------------------------------------------------------------
@@ -490,6 +684,11 @@ tile_bg_r: .db 16
 tile_bg_b: .db 17
 
 tile_counter: .db 18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34
+
+eeprom_tile: .db 34,35,36,37
+eeprom_tile_ok: .db 38,39
+eeprom_tile_bad: .db 40,41
+
 
 author: .db "Written by Remy Sharp, 2023"
 
