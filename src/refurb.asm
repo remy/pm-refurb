@@ -32,6 +32,16 @@ btnR: .db 0
 btnS: .db 0
 
 ;-----------------------------------------------------------------------------
+; Sound vars
+play: .db 0
+prevtune: .dw 0
+tune: .dw 0 # pointer to current tune
+tuneend: .dw 0
+nl: .db 0
+nl2: .db 0
+
+
+;-----------------------------------------------------------------------------
 ; Header
 ;-----------------------------------------------------------------------------
 
@@ -43,79 +53,80 @@ begin:
 
 # interrupt handlers - most of which I don't use
 
-#INT #1
-.orgfill 0x2108   #V-BLANK
+# INT # 1
+.orgfill 0x2108   # V-BLANK
     jmp unhandled_interrupt # not handled
-#INT #2
-.orgfill 0x210E   #V-DRAW
+# INT # 2
+.orgfill 0x210E   # V-DRAW
     jmp unhandled_interrupt
-#INT #3
-.orgfill 0x2114   #TIMER 2 OVERFLOW
-	jmp unhandled_interrupt
-#INT #4
+# INT # 3
+.orgfill 0x2114   # TIMER 2 OVERFLOW
+	jmp dosound
+	; jmp unhandled_interrupt
+# INT # 4
 .orgfill 0x211A   #
     jmp unhandled_interrupt
-#INT #5
-.orgfill 0x2120   #TIMER 1 OVERFLOW
+# INT # 5
+.orgfill 0x2120   # TIMER 1 OVERFLOW
 	jmp unhandled_interrupt
-#INT #6
+# INT # 6
 .orgfill 0x2126   #
-    #jmp unhandled_interrupt
-#INT #7
-.orgfill 0x212C   #TIMER 3 OVERFLOW
+    # jmp unhandled_interrupt
+# INT # 7
+.orgfill 0x212C   # TIMER 3 OVERFLOW
     jmp unhandled_interrupt
-#INT #8
-.orgfill 0x2132   #TIMER 3 OVERFLOW
+# INT # 8
+.orgfill 0x2132   # TIMER 3 OVERFLOW
     jmp unhandled_interrupt
-#INT #9
+# INT # 9
 .orgfill 0x2138   #
     jmp unhandled_interrupt
-#INT #10
+# INT # 10
 .orgfill 0x213E   #
     jmp unhandled_interrupt
-#INT #11
+# INT # 11
 .orgfill 0x2144   #
     jmp unhandled_interrupt
-#INT #12
+# INT # 12
 .orgfill 0x214A   #
     jmp unhandled_interrupt
-#INT #13
-.orgfill 0x2150   #IR RECEIVE LOW TO HIGH
+# INT # 13
+.orgfill 0x2150   # IR RECEIVE LOW TO HIGH
     jmp unhandled_interrupt
-#INT #14
-.orgfill 0x2156   #SHOCK DETECTOR
+# INT # 14
+.orgfill 0x2156   # SHOCK DETECTOR
     jmp int_shock
-#INT #15
-.orgfill 0x215C   #KEY PRESS: POWER BUTTON
+# INT # 15
+.orgfill 0x215C   # KEY PRESS: POWER BUTTON
     jmp pressed_power
-#INT #16
-.orgfill 0x2162   #KEY PRESS: D-PAD RIGHT
+# INT # 16
+.orgfill 0x2162   # KEY PRESS: D-PAD RIGHT
     jmp pressed_right
-#INT #17
-.orgfill 0x2168   #KEY PRESS: D-PAD LEFT
+# INT # 17
+.orgfill 0x2168   # KEY PRESS: D-PAD LEFT
     jmp pressed_left
-#INT #18
-.orgfill 0x216E   #KEY PRESS: D-PAD DOWN
+# INT # 18
+.orgfill 0x216E   # KEY PRESS: D-PAD DOWN
     jmp pressed_down
-#INT #19
-.orgfill 0x2174   #KEY PRESS: D-PAD UP
+# INT # 19
+.orgfill 0x2174   # KEY PRESS: D-PAD UP
     jmp pressed_up
-#INT #20
-.orgfill 0x217A   #KEY PRESS: C KEY
+# INT # 20
+.orgfill 0x217A   # KEY PRESS: C KEY
     jmp pressed_c
-#INT #21
-.orgfill 0x2180   #KEY PRESS: B KEY
+# INT # 21
+.orgfill 0x2180   # KEY PRESS: B KEY
     jmp pressed_b
-#INT #22
-.orgfill 0x2186   #KEY PRESS: A KEY
+# INT # 22
+.orgfill 0x2186   # KEY PRESS: A KEY
     jmp pressed_a
-#INT #23
+# INT # 23
 .orgfill 0x218C   #
     jmp unhandled_interrupt
-#INT #24
+# INT # 24
 .orgfill 0x2192   #
     jmp unhandled_interrupt
-#INT #25
+# INT # 25
 .orgfill 0x2198   #
     jmp unhandled_interrupt
 
@@ -135,12 +146,38 @@ start:
     # NN register points to hardware registers
     movw	nn, 0x2000
 
+	; sound effect setup
+	movw	x1, sound_start+2
+	movw	[tune], x1
+
+	movw	x1, sound_end
+	movw	[tuneend], x1
+
+	movw	x1, sound_start+2
+	movw	[prevtune], x1 ; where we jump back if tune over (BG music?)
+
+	movb	a, 7
+	movb	[nl], a
+
+    ; no output
+	movw	x1, 0
+	movw	[REG_BASE+REG_TIMER3_PRESET], x1
+	movw	[REG_BASE+REG_TIMER3_PIVOT], x1
+
 	;movw nn, IO_BEGIN
 	; set tiled mode 12x8, non-inverted, and enable video
 	movb	[nn+VIDEO_0], $02+$08
 	movb	[nn+VIDEO_1], $01+$08
 
 	; interrupts
+
+	; audio
+	mov		[nn+REG_TIMER_CONTROL], TIMERS_ON
+	mov		[nn+REG_TIMER2_PRESCALE], PRESCALE_ENABLE | PRESCALE_FREQ_62500HZ
+	mov		[nn+REG_TIMER3_PRESCALE], PRESCALE_ENABLE | PRESCALE_FREQ_2MHZ
+
+	mov		[nn+REG_EVENT3P],INT3P_TIMER2OVERFLOW
+	mov		[nn+REG_EVENT3S],INT3S_TIMER2OVERFLOW
 
 	; enable the input interrupts
     movb	[nn+REG_EVENT1P],INT1P_KEYPAD ; clear the current state
@@ -150,6 +187,18 @@ start:
 	movb	[nn+REG_INT_FLAG],INT2S_SHOCK ; clear the state
     movb	[nn+REG_EVENT2P],INT2P_SHOCK
     movb	[nn+REG_EVENT2S],INT2S_SHOCK
+
+	mov		[nn+REG_TIMER1_CNT1], 0
+	mov		[nn+REG_TIMER2_CNT1], TIMER_ENABLE | TIMER_PRESET
+	mov		[nn+REG_TIMER2_CNT2], 0
+
+    movw	x1, [sound_start]
+	movw	[REG_BASE+REG_TIMER2_PRESET], x1      #(976 / 8)
+
+	mov		[nn+REG_VOLUME], 3
+	mov		[nn+REG_TIMER3_CNT1], TIMER_ENABLE | TIMER_PRESET
+
+	mov		[nn+REG_TIMER3_CNT2], 0
 
 	; get irqs working in minimon
 	mov		flags, 0
@@ -495,6 +544,9 @@ put_tile_loop:
 	mov b, [x1]
 	mov [x2+l], b
 
+	mov	a, 1
+	movb [play], a
+
 	ret
 
 ;-----------------------------------------------------------------------------
@@ -521,6 +573,78 @@ _rumble_loop:
 
 
 
+dosound:
+	pushax
+
+	movb 	[nn+REG_INT_FLAG1],IF_TIMER2OVERFLOW
+
+	movb	a, [play]
+	cmp     a, 1
+	jnz		nosound
+
+	mov		[nn+REG_VOLUME], 3
+
+	movb	a, [nl]
+	inc		a
+    movb	[nl], a
+	cmp		a, 8
+	jnz		wait
+
+	movb	a, 0
+	movb	[nl], a
+
+	##load current tune position
+	movw	HL, [tune]
+
+	movb	a, [HL]
+	andb	a, $3
+	movb	[REG_BASE+REG_VOLUME], a
+
+	mov		a, [HL]
+	shr		a
+	shr		a
+	movb	[nl2], a
+
+	inc		HL
+
+	movw	x1, [HL]
+	movw	[REG_BASE+REG_TIMER3_PRESET], x1
+
+	inc		HL
+	inc		HL
+
+	movw	x1, [HL]
+	movw	[REG_BASE+REG_TIMER3_PIVOT], x1
+
+	inc		HL
+	inc		HL
+
+	movw	x1, [tuneend]
+	cmp		HL, x1
+	jnz		nomod
+	movw	HL, [prevtune]
+	mov		a, 0
+	mov 	[play], a
+nomod:
+  	movw	[tune], HL
+	popax
+    reti
+
+wait:
+	movb	b, [nl2]
+	cmp		a, b
+	jnz		nomute
+	movb	a, 0
+	movb	[REG_BASE+REG_VOLUME], a
+nomute:
+	popax
+    reti
+
+nosound:
+	movb	a, 0
+	movb	[REG_BASE+REG_VOLUME], a
+	popax
+    reti
 
 play_sfx_1:
 	mov b, 0
@@ -577,14 +701,14 @@ read_data:
 	inc		l
 	cmp		l, EEPROM_DATA_SIZE
 	jz		all_read
-	#send ack
+	# send ack
 	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF	# data down
 	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
 	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
 	jmp		read_data
 
 all_read:
-	#send stop condition
+	# send stop condition
 	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
 	orb		[nn+REG_IO_DATA], IO_EEPROM_DATA		# data up
 	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
@@ -602,7 +726,7 @@ start_condition:
 	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF
 	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF
 	ret
-#--------------------------------------------
+# --------------------------------------------
 # send byte - transmit a byte of data
 # assumes clock is down, destroys b
 # input is in a
@@ -617,7 +741,7 @@ _send_bit:
 	jmp 	_next_bit
 
 _send_bit_off:
-	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF	#switch bit off
+	andb	[nn+REG_IO_DATA], IO_EEPROM_DATA_OFF	# switch bit off
 
 _next_bit:
 	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
@@ -641,10 +765,10 @@ _do_something:
 _done:
 	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
 	ret
-#--------------------------------------------
-#read byte - receive a byte of data
+# --------------------------------------------
+# read byte - receive a byte of data
 # assumes clock is high, destroys b
-#output goes in a
+# output goes in a
 read_byte:
 	mov		b, 8
 	mov		a, 0
@@ -652,7 +776,7 @@ _read_bit:
 	andb	[nn+REG_IO_DATA], IO_EEPROM_CLOCK_OFF	# clock down
 	orb		[nn+REG_IO_DATA], IO_EEPROM_CLOCK		# clock up
 	shlb	a
-	testb	[nn+REG_IO_DATA], IO_EEPROM_DATA		#read bit
+	testb	[nn+REG_IO_DATA], IO_EEPROM_DATA		# read bit
 	jz		_next_read
 	inc		a										# set low bit
 
@@ -660,6 +784,7 @@ _next_read:
 	jdbnz	_read_bit
 
 	ret
+
 ;-----------------------------------------------------------------------------
 ; Data
 ;-----------------------------------------------------------------------------
@@ -706,9 +831,16 @@ sound_fx0:
 	PMMUSIC_END
 
 
+sound_start:
+	.incbin includes/sound.bin
+sound_end:
+
+
+
 	.align 8
 
 tile_data:
 	.incbin includes/tiles.bin
 
-	.end
+
+.end

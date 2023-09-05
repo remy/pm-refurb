@@ -1,6 +1,6 @@
 # Refurb tool for Pokémon Mini
 
-I wrote this tool because I've started acquiring faulty Pokémon Mini consoles and having a way to quickly test all the inputs are working is useful. This also tests that the EEPROM can be read (and therefore written to) and the rumble works.
+I wrote this tool because I've started acquiring faulty Pokémon Mini consoles and having a way to quickly test all the inputs are working is useful. This also tests that the EEPROM can be read (and therefore written to), the rumble works (happens at start up), and sound works (each button press triggers the sound effect).
 
 ## The UI
 
@@ -26,6 +26,7 @@ These are included in the `bin` directory, but can be found here:
 
 ## TODO
 
-- Rumble on trigger button (currently I can't work out how to stop the rumble!)
-- Sound
+- [x] Rumble on trigger boot up
+- [x] Sound
+- [x] EEPROM test
 - Possibly infrared, but apparently it's not documented
